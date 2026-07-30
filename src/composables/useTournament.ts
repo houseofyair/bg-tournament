@@ -35,22 +35,28 @@ const PointIncrements: Record<number, number> = {
   5: 1,
 }
 
-export const TournamentGameLibrary = {
-  'Roll & Write': ['Welcome To', "Hadrian's Wall", 'Three Sisters'],
-  'Network & Route Building': ['Ticket to Ride', 'The Quest for El Dorado', 'Settlers of Catan'],
-  'Area Control & Asymmetric Conflict': ['Root', 'El Grande', 'Cosmic Encounter'],
-  'Auctions & Economics': ['RA', 'For Sale'],
-  'Engine Building & Card Drafting': ['7 Wonders', 'Wingspan'],
-  'Push Your Luck': ["Can't Stop", 'Flip 7', 'King of Tokyo'],
-  'Movement & Tactical Positioning': ['Jamaica', 'Survive the Island'],
-  'Accessible Card & Party Games': ['Scout', 'Hues and Cues', 'Play Nine'],
-}
-
-type TournamentCategory = keyof typeof TournamentGameLibrary
+export const TournamentGameLibrary = [
+  'Welcome To',
+  'Ticket to Ride',
+  'The Quest for El Dorado',
+  'Settlers of Catan',
+  'El Grande',
+  'RA',
+  'For Sale',
+  '7 Wonders',
+  'Wingspan',
+  "Can't Stop",
+  'Flip 7',
+  'King of Tokyo',
+  'Jamaica',
+  'Survive the Island',
+  'Scout',
+  'Hues and Cues',
+  'Play Nine',
+]
 
 const STORAGE_KEYS = {
-  CATEGORY_AVAILABLE: 'tourney_categories',
-  CATEGORY_CURRENT: 'tourney_category',
+  GAMES_AVAILABLE: 'tourney_games',
   PLAYERS: 'tourney_players',
   ROUND: 'tourney_round',
   STATE: 'tourney_state',
@@ -59,25 +65,22 @@ const STORAGE_KEYS = {
 
 const TABLE_SIZE: number = 5 // adjust this to change how many players per table
 
-const availableCategories: Ref<string[]> = ref(Object.keys(TournamentGameLibrary) as TournamentCategory[])
+const availableGames = ref(TournamentGameLibrary)
 const currentState = ref(TournamentState.Idle)
 const currentRound = ref(0)
-const currentCategory = ref('')
 const players: Ref<Player[]> = ref([])
 const tables: Ref<TournamentTable[]> = ref([])
 
 export function useTournament() {
   ;(function loadFromStorage() {
     try {
-      const savedAvailableCategories = localStorage.getItem(STORAGE_KEYS.CATEGORY_AVAILABLE)
-      const savedCategory = localStorage.getItem(STORAGE_KEYS.CATEGORY_CURRENT)
+      const savedAvailableGames = localStorage.getItem(STORAGE_KEYS.GAMES_AVAILABLE)
       const savedRound = localStorage.getItem(STORAGE_KEYS.ROUND)
       const savedState = localStorage.getItem(STORAGE_KEYS.STATE)
       const savedPlayers = localStorage.getItem(STORAGE_KEYS.PLAYERS)
       const savedTables = localStorage.getItem(STORAGE_KEYS.TABLES)
 
-      if (savedAvailableCategories) availableCategories.value = JSON.parse(savedAvailableCategories)
-      if (savedCategory) currentCategory.value = JSON.parse(savedCategory)
+      if (savedAvailableGames) availableGames.value = JSON.parse(savedAvailableGames)
       if (savedRound) currentRound.value = JSON.parse(savedRound)
       if (savedState) currentState.value = JSON.parse(savedState)
       if (savedPlayers) players.value = JSON.parse(savedPlayers)
@@ -88,10 +91,9 @@ export function useTournament() {
   })()
 
   watch(
-    [availableCategories, currentCategory, currentRound, currentState, players, tables],
+    [availableGames, currentRound, currentState, players, tables],
     () => {
-      localStorage.setItem(STORAGE_KEYS.CATEGORY_AVAILABLE, JSON.stringify(availableCategories.value))
-      localStorage.setItem(STORAGE_KEYS.CATEGORY_CURRENT, JSON.stringify(currentCategory.value))
+      localStorage.setItem(STORAGE_KEYS.GAMES_AVAILABLE, JSON.stringify(availableGames.value))
       localStorage.setItem(STORAGE_KEYS.ROUND, JSON.stringify(currentRound.value))
       localStorage.setItem(STORAGE_KEYS.STATE, JSON.stringify(currentState.value))
       localStorage.setItem(STORAGE_KEYS.PLAYERS, JSON.stringify(players.value))
@@ -142,21 +144,18 @@ export function useTournament() {
     // reset tables
     tables.value = []
 
-    const categoryPoolForRandomSelection = [...toValue(availableCategories)] as TournamentCategory[]
-    const categoryIdx = Math.floor(Math.random() * categoryPoolForRandomSelection.length)
-    const selectedCategory = categoryPoolForRandomSelection.splice(categoryIdx, 1)[0] as TournamentCategory
-    const gamesInCategory = [...TournamentGameLibrary[selectedCategory]]
+    const gamesSelection = [...availableGames.value]
 
     const currentPlayers = subsetOfPlayers.length ? [...subsetOfPlayers] : [...players.value]
     const totalTables = Math.ceil(currentPlayers.length / TABLE_SIZE)
     let stageTables: TournamentTable[] = Array.from({ length: totalTables }, () => ({}) as TournamentTable)
 
-    stageTables = assignGamesToTables(gamesInCategory, stageTables)
+    stageTables = assignGamesToTables(gamesSelection, stageTables)
     stageTables = assignPlayersToTables(currentPlayers, stageTables)
 
-    // assign back to source of truth
-    availableCategories.value = categoryPoolForRandomSelection
-    currentCategory.value = selectedCategory
+    // remove selected games
+    availableGames.value = gamesSelection.filter((i) => !stageTables.map((i) => i.game).includes(i))
+
     tables.value = stageTables
     currentState.value = TournamentState.Scoring
     currentRound.value = currentRound.value + 1
@@ -194,13 +193,12 @@ export function useTournament() {
       i.wins.third = 0
     })
 
-    availableCategories.value = Object.keys(TournamentGameLibrary)
+    availableGames.value = [...TournamentGameLibrary]
     currentState.value = TournamentState.Idle
     currentRound.value = 0
   }
 
   return {
-    currentCategory,
     currentRound,
     currentState,
     generateNextRound,
